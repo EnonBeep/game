@@ -17,3 +17,7 @@
     R9: The users makes the drink by dragging the ingedients into a cup on the screen.
     R10: Cup will show the ingediesn in the cup when added, should be able to start over.
     R11: Should be able to seve the drink from the ingedients.
+
+# ROund 4 Requiremnts
+    R5:(CHANGE) A correct drink earns player coins, a wrong drink now loses 1 coin (but coins never go below 0)
+    R9: (CHANGE) Ingrediesnt are shown as puctures (Free Icons Only) and cup is draws as a takeaway codde cup with lid and sleeve. Once you are done you should be able to put lid on cup and serve.
