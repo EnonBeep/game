@@ -12,3 +12,8 @@
 # Round 2 Requiremnts
     R7: The game runs in a web browser, served from the players computer with one command.
     R8: Add a menu with the recipies for each drink.
+
+# Round 3 requirements
+    R9: The users makes the drink by dragging the ingedients into a cup on the screen.
+    R10: Cup will show the ingediesn in the cup when added, should be able to start over.
+    R11: Should be able to seve the drink from the ingedients.
