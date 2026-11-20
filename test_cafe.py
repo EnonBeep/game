@@ -132,5 +132,88 @@ class TestRound2(unittest.TestCase):
             self.assertIn('id="menu"', page)
 
 
+class TestRound3(unittest.TestCase):
+    def make_game(self, d):
+        game = cafe.Game(random.Random(5), os.path.join(d, "s.jsonl"))
+        game.handle("POST", "/api/name", {"name": "Kiwi"})
+        return game
+
+    def state(self, game):
+        return game.handle("GET", "/api/state", None)[2]
+
+    def test_R9_page_has_draggable_ingredients_and_cup_drop_zone(self):
+        with tempfile.TemporaryDirectory() as d:
+            page = self.make_game(d).handle("GET", "/", None)[2]
+            self.assertIn('id="cup"', page)
+            self.assertIn("draggable", page)
+            self.assertIn("ondrop", page.replace("addEventListener(\"drop\"", "ondrop"))
+            self.assertNotIn('type="checkbox"', page)
+            self.assertNotIn("type=\"checkbox\"", page)
+
+    def test_R9_dropping_ingredient_adds_it_to_cup(self):
+        with tempfile.TemporaryDirectory() as d:
+            game = self.make_game(d)
+            self.assertEqual(self.state(game)["cup"], [])
+            status, _, st = game.handle("POST", "/api/cup/add", {"ingredient": "espresso"})
+            self.assertEqual(status, 200)
+            self.assertEqual(st["cup"], ["espresso"])
+
+    def test_R9_unknown_or_missing_ingredient_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            game = self.make_game(d)
+            self.assertEqual(game.handle("POST", "/api/cup/add", {"ingredient": "gravel"})[0], 400)
+            self.assertEqual(game.handle("POST", "/api/cup/add", {})[0], 400)
+            self.assertEqual(self.state(game)["cup"], [])
+
+    def test_R10_cup_shows_ingredients_in_order_without_repeats(self):
+        with tempfile.TemporaryDirectory() as d:
+            game = self.make_game(d)
+            for i in ["espresso", "steamed milk", "espresso", "ice"]:
+                game.handle("POST", "/api/cup/add", {"ingredient": i})
+            self.assertEqual(self.state(game)["cup"], ["espresso", "steamed milk", "ice"])
+
+    def test_R10_start_over_empties_cup(self):
+        with tempfile.TemporaryDirectory() as d:
+            game = self.make_game(d)
+            game.handle("POST", "/api/cup/add", {"ingredient": "honey"})
+            status, _, st = game.handle("POST", "/api/cup/clear", {})
+            self.assertEqual((status, st["cup"]), (200, []))
+            self.assertIn("Start over", game.handle("GET", "/", None)[2])
+
+    def test_R11_serve_uses_cup_contents_and_pays(self):
+        with tempfile.TemporaryDirectory() as d:
+            game = self.make_game(d)
+            order = self.state(game)["customer"]["order"]
+            for i in sorted(cafe.RECIPES[order]):
+                game.handle("POST", "/api/cup/add", {"ingredient": i})
+            status, _, body = game.handle("POST", "/api/serve", {})
+            self.assertEqual(status, 200)
+            self.assertTrue(body["correct"])
+            self.assertEqual(body["state"]["coins"], cafe.REWARD)
+            self.assertEqual(body["state"]["cup"], [])
+
+    def test_R11_wrong_cup_pays_nothing_and_empties_cup(self):
+        with tempfile.TemporaryDirectory() as d:
+            game = self.make_game(d)
+            order = self.state(game)["customer"]["order"]
+            wrong = next(i for i in cafe.INGREDIENTS if cafe.RECIPES[order] != {i})
+            game.handle("POST", "/api/cup/add", {"ingredient": wrong})
+            _, _, body = game.handle("POST", "/api/serve", {})
+            self.assertFalse(body["correct"])
+            self.assertEqual((body["state"]["coins"], body["state"]["cup"]), (0, []))
+
+    def test_R11_serving_empty_cup_is_an_error_and_keeps_customer(self):
+        with tempfile.TemporaryDirectory() as d:
+            game = self.make_game(d)
+            before = self.state(game)["customer"]
+            self.assertEqual(game.handle("POST", "/api/serve", {})[0], 400)
+            self.assertEqual(self.state(game)["customer"], before)
+
+    def test_R11_page_has_serve_button(self):
+        with tempfile.TemporaryDirectory() as d:
+            page = self.make_game(d).handle("GET", "/", None)[2]
+            self.assertIn('id="serve"', page)
+
+
 if __name__ == "__main__":
     unittest.main()
