@@ -16,7 +16,7 @@ A short-session game played in a web browser, served locally by a Python program
 | R8 | Menu with the recipe for each drink | `menu()` returns every drink in `RECIPES` with its ingredients, sorted by name. It is included in `GET /api/state` and rendered by the page as an always-visible side panel. |
 
 ## Notes
-- Sessions are short: the player quits whenever they like, and progress is saved.
+- Sessions are short: the player quits (by closing tab or control C in terminal) whenever they like, and progress is saved.
 - `Game` takes injectable `rng` and `path`, and `Game.handle()` takes plain values, so logic is tested without a browser or network.
 - Saving stays server-side in `savegame.jsonl` with the same format, so earlier saves still load.
 - The server is single-player and keeps one `Game` shared by all connections.
