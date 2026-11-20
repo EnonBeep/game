@@ -8,3 +8,6 @@
     R4: must compare the prepared drink to custemers request
     R5: If correct reward the player w coins, if wrong no coins
     R6: Should save the players progress locally and be avaible when game reopened.
+
+# Round 2 Requiremnts
+    R7: The game runs in a web browser, served from the players computer with one command.
