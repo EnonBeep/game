@@ -119,6 +119,7 @@ class Game:
         self.path = path
         self.state = load_game(path)  # None until the barista is named
         self.customer = generate_customer(rng)
+        self.cup = []  # R10: ingredients dragged into the cup, in order
         self.lock = threading.Lock()
 
     def snapshot(self):
@@ -130,6 +131,7 @@ class Game:
             "correct": s.correct if s else 0,
             "customer": {"name": self.customer.cat.name, "order": self.customer.order},
             "ingredients": INGREDIENTS,
+            "cup": list(self.cup),
             "menu": menu(),
         }
 
@@ -142,9 +144,21 @@ class Game:
             self.state = GameState(Cat(name))
         save_game(self.state, self.path)
 
+    def add_to_cup(self, ingredient):
+        """R9/R10: drop an ingredient into the cup; repeats are ignored."""
+        name = str(ingredient or "").strip().lower()
+        prepare_drink([name] if name else [])  # raises ValueError if empty or unknown
+        if name not in self.cup:
+            self.cup.append(name)
+
+    def clear_cup(self):
+        """R10: start over."""
+        self.cup = []
+
     def serve_drink(self, ingredients):
         """R3-R6: prepare, compare, pay, save, then bring the next customer."""
         drink = prepare_drink(ingredients)
+        self.cup = []  # R11: the cup is empty after serving
         customer = self.customer
         earned = serve(self.state, customer, drink)
         save_game(self.state, self.path)
@@ -165,11 +179,20 @@ class Game:
         if method == "POST" and path == "/api/name":
             self.set_barista(body.get("name"))
             return 200, "application/json", self.snapshot()
+        if method == "POST" and path == "/api/cup/add":
+            try:
+                self.add_to_cup(body.get("ingredient"))
+            except ValueError as e:
+                return 400, "application/json", {"error": str(e)}
+            return 200, "application/json", self.snapshot()
+        if method == "POST" and path == "/api/cup/clear":
+            self.clear_cup()
+            return 200, "application/json", self.snapshot()
         if method == "POST" and path == "/api/serve":
             if not self.state:
                 return 400, "application/json", {"error": "Name your barista first."}
             try:
-                ingredients = body.get("ingredients", [])
+                ingredients = body.get("ingredients", self.cup)  # R11: default to the cup
                 if not isinstance(ingredients, list):
                     raise ValueError("ingredients must be a list.")
                 customer, earned = self.serve_drink([str(i) for i in ingredients])
@@ -251,7 +274,10 @@ PAGE = """<!DOCTYPE html>
 body{font-family:system-ui,sans-serif;background:#fdf3e7;color:#4a3426;margin:0;display:flex;gap:1.5rem;padding:1.5rem;flex-wrap:wrap}
 main{flex:2;min-width:280px}
 aside{flex:1;min-width:220px;background:#fff;border-radius:12px;padding:1rem;box-shadow:0 2px 6px #0002;align-self:flex-start}
-h1{margin-top:0}label{display:block;margin:.3rem 0}
+h1{margin-top:0}
+.tile{display:inline-block;margin:.25rem;padding:.5rem .8rem;background:#fff;border:2px solid #d98c5f;border-radius:999px;cursor:grab;user-select:none}
+#cup{min-height:120px;max-width:260px;margin:1rem 0;padding:.8rem;border:3px dashed #8a5a3c;border-radius:0 0 60px 60px;background:#fffaf3}
+#cup.over{background:#ffe3c9}#cup .tile{cursor:default;border-color:#8a5a3c}
 button{padding:.5rem 1rem;font-size:1rem;border-radius:8px;border:0;background:#d98c5f;color:#fff;cursor:pointer}
 #msg{min-height:1.5rem;font-weight:bold}#menu{padding-left:1.2rem}#menu li{margin-bottom:.5rem}
 </style></head><body>
@@ -261,7 +287,10 @@ button{padding:.5rem 1rem;font-size:1rem;border-radius:8px;border:0;background:#
 <div id="game" hidden>
 <p id="stats"></p>
 <h2 id="order"></h2>
-<form id="form"><div id="ings"></div><p><button>Serve</button></p></form>
+<p>Drag ingredients into the cup:</p>
+<div id="ings"></div>
+<div id="cup" aria-label="Cup"><em id="empty">The cup is empty.</em><div id="cupitems"></div></div>
+<p><button id="serve">Serve</button> <button id="clear">Start over</button></p>
 </div>
 <p id="msg" aria-live="polite"></p>
 </main>
@@ -279,13 +308,26 @@ function show(s){
   if(!s.barista)return;
   $("stats").textContent=s.barista+" | Coins: "+s.coins+" | Served: "+s.served+" | Correct: "+s.correct;
   $("order").textContent=s.customer.name+" the cat orders a "+s.customer.order+".";
-  $("ings").innerHTML=s.ingredients.map(i=>'<label><input type="checkbox" value="'+esc(i)+'"> '+esc(i)+"</label>").join("");
+  $("ings").innerHTML=s.ingredients.map(i=>'<span class="tile" draggable="true" data-ing="'+esc(i)+'">'+esc(i)+"</span>").join("");
+  $("cupitems").innerHTML=s.cup.map(i=>'<span class="tile">'+esc(i)+"</span>").join("");
+  $("empty").hidden=s.cup.length>0;
 }
 $("go").onclick=async()=>show((await api("/api/name",{name:$("name").value}))[1]);
-$("form").onsubmit=async e=>{
-  e.preventDefault();
-  const ing=[...document.querySelectorAll("#ings input:checked")].map(c=>c.value);
-  const [ok,d]=await api("/api/serve",{ingredients:ing});
+document.addEventListener("dragstart",e=>{
+  const t=e.target.closest&&e.target.closest("[data-ing]");
+  if(t)e.dataTransfer.setData("text/plain",t.dataset.ing);
+});
+const cup=$("cup");
+cup.addEventListener("dragover",e=>{e.preventDefault();cup.classList.add("over");});
+cup.addEventListener("dragleave",()=>cup.classList.remove("over"));
+cup.addEventListener("drop",async e=>{
+  e.preventDefault();cup.classList.remove("over");
+  const [ok,d]=await api("/api/cup/add",{ingredient:e.dataTransfer.getData("text/plain")});
+  if(ok){$("msg").textContent="";show(d);}else $("msg").textContent=d.error;
+});
+$("clear").onclick=async()=>show((await api("/api/cup/clear",{}))[1]);
+$("serve").onclick=async()=>{
+  const [ok,d]=await api("/api/serve",{});
   if(!ok){$("msg").textContent=d.error;return;}
   show(d.state);
   $("msg").textContent=d.correct?"Purrfect! +"+d.earned+" coins.":"Hiss... that was not a "+d.order+". No coins.";

@@ -146,9 +146,8 @@ class TestRound3(unittest.TestCase):
             page = self.make_game(d).handle("GET", "/", None)[2]
             self.assertIn('id="cup"', page)
             self.assertIn("draggable", page)
-            self.assertIn("ondrop", page.replace("addEventListener(\"drop\"", "ondrop"))
-            self.assertNotIn('type="checkbox"', page)
-            self.assertNotIn("type=\"checkbox\"", page)
+            self.assertIn('addEventListener("drop"', page)
+            self.assertNotIn("checkbox", page)
 
     def test_R9_dropping_ingredient_adds_it_to_cup(self):
         with tempfile.TemporaryDirectory() as d:
