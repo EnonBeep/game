@@ -11,3 +11,4 @@
 
 # Round 2 Requiremnts
     R7: The game runs in a web browser, served from the players computer with one command.
+    R8: Add a menu with the recipies for each drink.
