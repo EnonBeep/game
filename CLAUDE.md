@@ -25,4 +25,5 @@
 - Game logic must stay testable without a browser or network: `Game.handle()` is the HTTP API, and `cafe.py` must keep working with the standard library only.
 
 - Handoff files (`handoff-round-N.md`) are written only when the user asks, and neither they nor CLAUDE.md changes are committed until the user has reviewed them.
+
 - Do not write the next requirements ahead of time: the user adds each round's requirements to `problem.md`; read them there.
